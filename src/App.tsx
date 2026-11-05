@@ -183,8 +183,9 @@ export const App: React.FC = () => {
       }
     );
 
-    // Listen to real-time download progress from Tauri Rust Backend
+    // Listen to real-time download progress and game process exit
     let unlistenProgress: (() => void) | null = null;
+    let unlistenSession: (() => void) | null = null;
     const setupListener = async () => {
       try {
         unlistenProgress = await listen<any>("download_progress", (event) => {
@@ -200,6 +201,25 @@ export const App: React.FC = () => {
             };
           });
         });
+
+        unlistenSession = await listen<{ game_id: string; duration_seconds: number }>(
+          "game_session_ended",
+          (event) => {
+            const { game_id, duration_seconds } = event.payload;
+            const addedHours = Math.max(0.1, Math.round((duration_seconds / 3600) * 10) / 10);
+            setGames((prev) =>
+              prev.map((g) => {
+                if (g.id !== game_id) return g;
+                const newHours = Math.round(((g.playtime_hours || 0) + addedHours) * 10) / 10;
+                return {
+                  ...g,
+                  playtime_hours: newHours,
+                  last_played: "Today",
+                };
+              })
+            );
+          }
+        );
       } catch {}
     };
     setupListener();
@@ -207,6 +227,7 @@ export const App: React.FC = () => {
     return () => {
       authSub.subscription.unsubscribe();
       if (unlistenProgress) unlistenProgress();
+      if (unlistenSession) unlistenSession();
     };
   }, []);
 

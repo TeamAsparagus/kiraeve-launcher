@@ -14,6 +14,12 @@ struct DownloadProgressPayload {
     speed: String,
 }
 
+#[derive(Serialize, Clone)]
+struct GameSessionEndedPayload {
+    game_id: String,
+    duration_seconds: u64,
+}
+
 #[derive(Deserialize)]
 struct GitHubAsset {
     id: u64,
@@ -118,6 +124,7 @@ fn uninstall_game(game_id: String, custom_dir: Option<String>) -> Result<String,
 /// Spawns the game executable as a detached process on Windows
 #[tauri::command]
 fn launch_game_executable(
+    window: Window,
     game_id: String,
     custom_dir: Option<String>,
     exe_target: String,
@@ -137,23 +144,57 @@ fn launch_game_executable(
         use std::os::windows::process::CommandExt;
         const DETACHED_PROCESS: u32 = 0x00000008;
 
-        let child = Command::new(&exe_path)
+        let mut child = Command::new(&exe_path)
             .current_dir(&folder)
             .creation_flags(DETACHED_PROCESS)
             .spawn()
             .map_err(|e| format!("Failed to launch process: {}", e))?;
 
-        Ok(child.id())
+        let pid = child.id();
+        let gid = game_id.clone();
+        let win = window.clone();
+
+        std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            let _ = child.wait();
+            let duration_seconds = start.elapsed().as_secs();
+            let _ = win.emit(
+                "game_session_ended",
+                GameSessionEndedPayload {
+                    game_id: gid,
+                    duration_seconds,
+                },
+            );
+        });
+
+        Ok(pid)
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        let child = Command::new(&exe_path)
+        let mut child = Command::new(&exe_path)
             .current_dir(&folder)
             .spawn()
             .map_err(|e| format!("Failed to launch process: {}", e))?;
 
-        Ok(child.id())
+        let pid = child.id();
+        let gid = game_id.clone();
+        let win = window.clone();
+
+        std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            let _ = child.wait();
+            let duration_seconds = start.elapsed().as_secs();
+            let _ = win.emit(
+                "game_session_ended",
+                GameSessionEndedPayload {
+                    game_id: gid,
+                    duration_seconds,
+                },
+            );
+        });
+
+        Ok(pid)
     }
 }
 
@@ -406,17 +447,14 @@ async fn install_mock_game(
 
     #[cfg(target_os = "windows")]
     {
-        if exe_target.ends_with(".exe") {
-            let cmd_path = folder.join("launch.bat");
-            fs::write(
-                &cmd_path,
-                "@echo off\r\necho Kiraeve Game Launcher - Game Process Started!\r\npause\r\n",
-            )
-            .map_err(|e| format!("Failed to create launch script: {}", e))?;
+        let exe_bytes: &'static [u8] = match game_id.as_str() {
+            "kira-space-odyssey" => include_bytes!("../../demo-games/space-odyssey/SpaceOdyssey.exe"),
+            "neon-cyber-drift" => include_bytes!("../../demo-games/cyber-drift/CyberDrift.exe"),
+            _ => include_bytes!("../../demo-games/kiraeve-pilot/KiraevePilot.exe"),
+        };
 
-            fs::write(&exe_path, b"MZ_KIRAEVE_PACKAGE")
-                .map_err(|e| format!("Failed to write executable: {}", e))?;
-        }
+        fs::write(&exe_path, exe_bytes)
+            .map_err(|e| format!("Failed to write game executable: {}", e))?;
     }
 
     #[cfg(not(target_os = "windows"))]

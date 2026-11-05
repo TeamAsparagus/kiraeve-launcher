@@ -109,9 +109,7 @@ async function fetchCloudFriends(ownerUid: string): Promise<Friend[]> {
   return profiles.map((p) => ({
     uid: p.uid,
     username: p.username,
-    avatar_url:
-      p.avatar_url ||
-      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+    avatar_url: p.avatar_url || generateDefaultAvatar(p.username),
     status: (p.status as any) || "online",
   }));
 }
