@@ -7,6 +7,7 @@ dist/
 dist-ssr/
 *.local
 *.exe
+!demo-games/**/*.exe
 
 
 # Environment variables

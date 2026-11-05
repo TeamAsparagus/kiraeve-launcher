@@ -151,9 +151,20 @@ export const App: React.FC = () => {
         // Browser mode
       }
 
+      const cloudCatalog = await authService.fetchCatalog(BASE_CATALOG);
       const activeSession = await authService.getActiveSession();
       if (activeSession) {
-        applySessionToState(activeSession);
+        setUser(activeSession.user);
+        setFriends(activeSession.friends);
+        setGames(
+          cloudCatalog.map((g) => ({
+            ...g,
+            is_unlocked: activeSession.unlockedGameIds.includes(g.id),
+            is_installed: activeSession.installedGameIds.includes(g.id),
+          }))
+        );
+      } else {
+        setGames(cloudCatalog);
       }
 
       // Check for launcher updates on startup

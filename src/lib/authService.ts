@@ -183,13 +183,18 @@ export const authService = {
           const cloudFriends = await fetchCloudFriends(profile.uid);
           const localAcc = db.accounts.find((a) => a.uid === profile.uid);
 
+          const avatar =
+            !profile.avatar_url || profile.avatar_url.includes("unsplash.com")
+              ? generateDefaultAvatar(profile.username)
+              : profile.avatar_url;
+
           return {
             user: {
               id: profile.id,
               uid: profile.uid,
               username: profile.username,
               email: profile.email,
-              avatar_url: profile.avatar_url,
+              avatar_url: avatar,
               background_url: profile.background_url,
               bio: profile.bio || "Kiraeve Player",
               level: profile.level || 1,
@@ -255,25 +260,48 @@ export const authService = {
       });
       if (error) throw new Error(error.message);
       if (data.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", data.user.id)
-          .single();
+        let profile = null;
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const { data: p } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", data.user.id)
+            .maybeSingle();
+
+          if (p) {
+            profile = p;
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 400));
+        }
 
         if (profile) {
+          const { data: entitlements } = await supabase
+            .from("user_game_entitlements")
+            .select("game_id")
+            .eq("user_uid", profile.uid);
+
+          const avatar =
+            !profile.avatar_url || profile.avatar_url.includes("unsplash.com")
+              ? generateDefaultAvatar(profile.username)
+              : profile.avatar_url;
+
           return {
             user: {
               id: profile.id,
               uid: profile.uid,
               username: profile.username,
               email: profile.email,
-              avatar_url: profile.avatar_url,
+              avatar_url: avatar,
+              background_url: profile.background_url,
               bio: profile.bio || "Kiraeve Player",
-              level: 1,
+              level: profile.level || 1,
               status: "online",
             },
-            unlockedGameIds: ["kiraeve-pilot"],
+            unlockedGameIds:
+              entitlements && entitlements.length > 0
+                ? entitlements.map((e) => e.game_id)
+                : ["kiraeve-pilot"],
             installedGameIds: [],
             friends: [],
           };
@@ -343,15 +371,13 @@ export const authService = {
     if (isSupabaseConfigured()) {
       let loginEmail = cleanId;
       if (!cleanId.includes("@")) {
-        // Resolve username or UID to email from profiles
-        const { data: resolved } = await supabase
-          .from("profiles")
-          .select("email")
-          .or(`username.ilike.${cleanId},uid.ilike.${cleanId}`)
-          .maybeSingle();
+        // Resolve username or UID to email via secure RPC
+        const { data: resolvedEmail } = await supabase.rpc("get_email_by_identifier", {
+          p_identifier: cleanId,
+        });
 
-        if (resolved?.email) {
-          loginEmail = resolved.email;
+        if (resolvedEmail) {
+          loginEmail = resolvedEmail;
         }
       }
 
@@ -376,13 +402,18 @@ export const authService = {
           const cloudFriends = await fetchCloudFriends(profile.uid);
           const localAcc = db.accounts.find((a) => a.uid === profile.uid);
 
+          const avatar =
+            !profile.avatar_url || profile.avatar_url.includes("unsplash.com")
+              ? generateDefaultAvatar(profile.username)
+              : profile.avatar_url;
+
           return {
             user: {
               id: profile.id,
               uid: profile.uid,
               username: profile.username,
               email: profile.email,
-              avatar_url: profile.avatar_url,
+              avatar_url: avatar,
               background_url: profile.background_url,
               bio: profile.bio || "Kiraeve Player",
               level: profile.level || 1,
