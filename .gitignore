@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+dist/
+dist-ssr/
+*.local
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Tauri & Rust artifacts
+src-tauri/target/
+src-tauri/updater_key
+*.key
+
+# Logs & temp
+*.log
+.temp-*
+
+# OS files
+Thumbs.db
+.DS_Store

@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #1a9fff;
+    --color-secondary: #66c0f4;
+    --color-accent: #a4d007;
+    --color-background: #1b2838;
+    --color-card: #171d25;
+    --color-muted: #141d27;
+    --color-border: #2a475e;
+  }
+
+  body {
+    background-color: #1b2838;
+    color: #c7d5e0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* Page Transition Keyframes */
+@keyframes pageFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-enter {
+  animation: pageFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Card hover glow effects */
+.steam-card-glow {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.steam-card-glow:hover {
+  border-color: #1a9fff;
+  box-shadow: 0 10px 25px -5px rgba(26, 159, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Custom Steam scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #10141a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a475e;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3d688a;
+}
