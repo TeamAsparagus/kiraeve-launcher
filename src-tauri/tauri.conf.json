@@ -49,6 +49,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk3RjAxN0FCNUE5MTAxMjcKUldRbkFaRmFxeGZ3bDRZSWptV2YwSTRHdW1obVpmNFgxdXpJMTZtcUcvMmxOT29qV01FL05PakwK",
       "endpoints": [
+        "https://github.com/TeamAsparagus/kiraeve-launcher/releases/latest/download/latest.json",
         "https://pub-62352b30a9014afa94bda00163ab4d79.r2.dev/launcher/latest.json"
       ]
     }
