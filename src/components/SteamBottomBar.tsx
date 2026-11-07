@@ -59,10 +59,10 @@ export const SteamBottomBar: React.FC<SteamBottomBarProps> = ({
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1.5 text-[#8f98a0] hover:text-[#5865F2] transition-colors cursor-pointer"
-          title="Join Official Kiraeve Discord"
+          title="Join Official Asparagus Discord"
         >
           <MessageSquare className="w-3.5 h-3.5 text-[#5865F2]" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider">Kiraeve Discord</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider">Asparagus Discord</span>
           <ExternalLink className="w-2.5 h-2.5 opacity-60" />
         </a>
 

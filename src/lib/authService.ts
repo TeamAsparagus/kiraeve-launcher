@@ -94,11 +94,17 @@ function toUserProfile(acc: StoredAccount): UserProfile {
 async function fetchCloudFriends(ownerUid: string): Promise<Friend[]> {
   const { data: relations } = await supabase
     .from("user_friends")
-    .select("friend_uid")
-    .eq("owner_uid", ownerUid);
+    .select("friend_uid, owner_uid")
+    .or(`owner_uid.eq.${ownerUid},friend_uid.eq.${ownerUid}`);
 
   if (!relations || relations.length === 0) return [];
-  const friendUids = relations.map((r) => r.friend_uid);
+  const friendUids = Array.from(
+    new Set(
+      relations.map((r) => (r.owner_uid === ownerUid ? r.friend_uid : r.owner_uid))
+    )
+  ).filter((id) => id !== ownerUid);
+
+  if (friendUids.length === 0) return [];
 
   const { data: profiles } = await supabase
     .from("profiles")
@@ -114,43 +120,77 @@ async function fetchCloudFriends(ownerUid: string): Promise<Friend[]> {
   }));
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 export const authService = {
   /**
-   * Fetches games catalog from Supabase Cloud when configured
+   * Fetches games catalog from Supabase Cloud when configured (with 4.5s resilience timeout)
    */
   async fetchCatalog(fallbackCatalog: Game[]): Promise<Game[]> {
     if (!isSupabaseConfigured()) return fallbackCatalog;
     try {
-      const { data, error } = await supabase
-        .from("games")
-        .select("*")
-        .eq("is_active", true);
+      const fetchPromise = (async () => {
+        const { data, error } = await supabase
+          .from("games")
+          .select("*")
+          .eq("is_active", true);
 
-      if (error || !data || data.length === 0) return fallbackCatalog;
+        if (error || !data || data.length === 0) return fallbackCatalog;
 
-      return data.map((row) => {
-        const fallback = fallbackCatalog.find((f) => f.id === row.id);
-        return {
-          id: row.id,
-          title: row.title,
-          description: row.description || fallback?.description || "",
-          banner_url: row.banner_url || fallback?.banner_url || "",
-          screenshots:
-            row.screenshots && row.screenshots.length > 0
-              ? row.screenshots
-              : fallback?.screenshots,
-          github_repo: row.github_repo,
-          exe_target: row.exe_target,
-          version: row.version || fallback?.version || "v1.0.0",
-          category: row.category || fallback?.category || "Action",
-          tags: row.tags && row.tags.length > 0 ? row.tags : fallback?.tags,
-          is_active: row.is_active,
-          is_unlocked: false,
-          is_installed: false,
-        };
-      });
+        return data.map((row) => {
+          const fallback = fallbackCatalog.find((f) => f.id === row.id);
+          const defaultManifest =
+            row.id === "anime-battle"
+              ? "https://pub-62352b30a9014afa94bda00163ab4d79.r2.dev/games/anime-battle/manifest.json"
+              : undefined;
+
+          return {
+            id: row.id,
+            title: row.title,
+            description: row.description || fallback?.description || "",
+            banner_url: row.banner_url || fallback?.banner_url || "",
+            screenshots:
+              row.screenshots && row.screenshots.length > 0
+                ? row.screenshots
+                : fallback?.screenshots,
+            github_repo: row.github_repo,
+            manifest_url: fallback?.manifest_url || defaultManifest,
+            exe_target: row.exe_target,
+            version: row.version || fallback?.version || "v1.0.0",
+            category: row.category || fallback?.category || "Action",
+            tags: row.tags && row.tags.length > 0 ? row.tags : fallback?.tags,
+            is_active: row.is_active,
+            is_unlocked: false,
+            is_installed: false,
+          };
+        });
+      })();
+
+      return await withTimeout(fetchPromise, 4500, fallbackCatalog);
     } catch {
       return fallbackCatalog;
+    }
+  },
+
+  /**
+   * Fetches fresh user entitlements directly from Supabase Cloud
+   */
+  async fetchUserEntitlements(uid: string): Promise<string[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const { data, error } = await supabase
+        .from("user_game_entitlements")
+        .select("game_id")
+        .eq("user_uid", uid);
+      if (error || !data) return [];
+      return data.map((e) => e.game_id);
+    } catch {
+      return [];
     }
   },
 
@@ -166,13 +206,68 @@ export const authService = {
     const db = loadDb();
 
     if (isSupabaseConfigured()) {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
+      try {
+        const cloudSessionPromise = (async () => {
+          const { data } = await supabase.auth.getSession();
+          if (data.session?.user) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", data.session.user.id)
+              .single();
+
+            if (profile) {
+              const { data: entitlements } = await supabase
+                .from("user_game_entitlements")
+                .select("game_id")
+                .eq("user_uid", profile.uid);
+
+              const cloudFriends = await fetchCloudFriends(profile.uid);
+              const localAcc = db.accounts.find((a) => a.uid === profile.uid);
+
+              const avatar =
+                !profile.avatar_url || profile.avatar_url.includes("unsplash.com")
+                  ? generateDefaultAvatar(profile.username)
+                  : profile.avatar_url;
+
+              return {
+                user: {
+                  id: profile.id,
+                  uid: profile.uid,
+                  username: profile.username,
+                  email: profile.email,
+                  avatar_url: avatar,
+                  background_url: profile.background_url,
+                  bio: profile.bio || "Asparagus Player",
+                  level: profile.level || 1,
+                  status: "online" as const,
+                },
+                unlockedGameIds: entitlements?.map((e) => e.game_id) || [],
+                installedGameIds: localAcc?.installedGameIds || [],
+                friends: cloudFriends,
+              };
+            }
+          }
+          return null;
+        })();
+
+        const sessionResult = await withTimeout(cloudSessionPromise, 4500, null);
+        if (sessionResult) return sessionResult;
+      } catch (err) {
+        console.warn("Supabase auth session check failed or timed out:", err);
+      }
+    }
+
+    if (!db.activeUserUid) return null;
+
+    // Check cloud for the active UID first
+    if (isSupabaseConfigured()) {
+      try {
         const { data: profile } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", data.session.user.id)
-          .single();
+          .eq("uid", db.activeUserUid)
+          .maybeSingle();
 
         if (profile) {
           const { data: entitlements } = await supabase
@@ -196,19 +291,20 @@ export const authService = {
               email: profile.email,
               avatar_url: avatar,
               background_url: profile.background_url,
-              bio: profile.bio || "Kiraeve Player",
+              bio: profile.bio || "Asparagus Player",
               level: profile.level || 1,
               status: "online",
             },
-            unlockedGameIds: entitlements?.map((e) => e.game_id) || ["kiraeve-pilot"],
+            unlockedGameIds: entitlements?.map((e) => e.game_id) || [],
             installedGameIds: localAcc?.installedGameIds || [],
             friends: cloudFriends,
           };
         }
+      } catch (err) {
+        console.warn("Failed fetching cloud profile for active user, falling back to local:", err);
       }
     }
 
-    if (!db.activeUserUid) return null;
     const acc = db.accounts.find((a) => a.uid === db.activeUserUid);
     if (!acc) return null;
 
@@ -294,14 +390,14 @@ export const authService = {
               email: profile.email,
               avatar_url: avatar,
               background_url: profile.background_url,
-              bio: profile.bio || "Kiraeve Player",
+              bio: profile.bio || "Asparagus Player",
               level: profile.level || 1,
               status: "online",
             },
             unlockedGameIds:
               entitlements && entitlements.length > 0
                 ? entitlements.map((e) => e.game_id)
-                : ["kiraeve-pilot"],
+                : [],
             installedGameIds: [],
             friends: [],
           };
@@ -328,10 +424,10 @@ export const authService = {
       email: cleanEmail,
       passwordHash: hashPassword(password),
       avatar_url: generateDefaultAvatar(cleanUsername),
-      bio: "Kiraeve Launcher Player",
+      bio: "Asparagus Player",
       level: 1,
       created_at: new Date().toISOString(),
-      unlockedGameIds: ["kiraeve-pilot"],
+      unlockedGameIds: [],
       installedGameIds: [],
       friends: [],
     };
@@ -415,11 +511,11 @@ export const authService = {
               email: profile.email,
               avatar_url: avatar,
               background_url: profile.background_url,
-              bio: profile.bio || "Kiraeve Player",
+              bio: profile.bio || "Asparagus Player",
               level: profile.level || 1,
               status: "online",
             },
-            unlockedGameIds: entitlements?.map((e) => e.game_id) || ["kiraeve-pilot"],
+            unlockedGameIds: entitlements?.map((e) => e.game_id) || [],
             installedGameIds: localAcc?.installedGameIds || [],
             friends: cloudFriends,
           };
@@ -472,15 +568,27 @@ export const authService = {
    */
   async updateProfile(updated: UserProfile): Promise<UserProfile> {
     if (isSupabaseConfigured()) {
-      await supabase
-        .from("profiles")
-        .update({
-          username: updated.username,
-          avatar_url: updated.avatar_url,
-          background_url: updated.background_url,
-          bio: updated.bio,
-        })
-        .eq("uid", updated.uid);
+      try {
+        await supabase.rpc("update_profile_info", {
+          p_uid: updated.uid,
+          p_username: updated.username,
+          p_avatar_url: updated.avatar_url || "",
+          p_bio: updated.bio || "",
+          p_status: updated.status || "online",
+        });
+      } catch (err) {
+        console.warn("RPC update_profile_info fallback to direct update:", err);
+        await supabase
+          .from("profiles")
+          .update({
+            username: updated.username,
+            avatar_url: updated.avatar_url,
+            background_url: updated.background_url,
+            bio: updated.bio,
+            status: updated.status || "online",
+          })
+          .eq("uid", updated.uid);
+      }
     }
 
     const db = loadDb();
@@ -499,6 +607,61 @@ export const authService = {
   },
 
   /**
+   * Fetches fresh friends list for active user
+   */
+  async fetchFriends(ownerUid: string): Promise<Friend[]> {
+    if (isSupabaseConfigured()) {
+      return await fetchCloudFriends(ownerUid);
+    }
+    const db = loadDb();
+    const acc = db.accounts.find((a) => a.uid === ownerUid);
+    return acc?.friends || [];
+  },
+
+  /**
+   * Fetches full profile of any player by UID (for viewing friend profiles)
+   */
+  async fetchUserProfileByUid(uid: string): Promise<UserProfile | null> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: p } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("uid", uid)
+          .maybeSingle();
+
+        if (p) {
+          const avatar =
+            !p.avatar_url || p.avatar_url.includes("unsplash.com")
+              ? generateDefaultAvatar(p.username)
+              : p.avatar_url;
+
+          return {
+            id: p.id,
+            uid: p.uid,
+            username: p.username,
+            email: p.email,
+            avatar_url: avatar,
+            background_url: p.background_url,
+            bio: p.bio || "Asparagus Player",
+            level: p.level || 1,
+            status: (p.status as any) || "online",
+          };
+        }
+      } catch (err) {
+        console.warn("fetchUserProfileByUid cloud error:", err);
+      }
+    }
+
+    const db = loadDb();
+    const acc = db.accounts.find((a) => a.uid === uid);
+    if (acc) {
+      return toUserProfile(acc);
+    }
+    return null;
+  },
+
+  /**
    * Redeems a Product Key via Supabase RPC (when configured) or Local DB
    */
   async redeemKey(
@@ -510,6 +673,7 @@ export const authService = {
     if (isSupabaseConfigured()) {
       const { data, error } = await supabase.rpc("redeem_product_key", {
         p_code: code,
+        p_user_uid: userUid,
       });
 
       if (error) {
@@ -549,12 +713,15 @@ export const authService = {
     }
 
     let targetGames: string[] = [];
-    if (code.includes("ODYSSEY")) {
-      targetGames = ["kira-space-odyssey"];
-    } else if (code.includes("CYBER")) {
-      targetGames = ["neon-cyber-drift"];
-    } else if (code === "KIRAEVE-ALL" || code === "KIRAEVE-VIP") {
-      targetGames = ["kiraeve-pilot", "kira-space-odyssey", "neon-cyber-drift"];
+    if (
+      code.includes("ANIME") ||
+      code.includes("BATTLE") ||
+      code === "ASPARAGUS-ALL" ||
+      code === "ASPARAGUS-VIP" ||
+      code === "KIRAEVE-ALL" ||
+      code === "KIRAEVE-VIP"
+    ) {
+      targetGames = ["anime-battle"];
     } else {
       return {
         ok: false,
@@ -566,7 +733,7 @@ export const authService = {
     targetGames.forEach((g) => currentUnlocked.add(g));
     db.accounts[accIdx].unlockedGameIds = Array.from(currentUnlocked);
 
-    if (code !== "KIRAEVE-ALL") {
+    if (code !== "KIRAEVE-ALL" && code !== "ASPARAGUS-ALL") {
       db.redeemedKeys[code] = {
         uid: userUid,
         redeemedAt: new Date().toISOString(),
@@ -625,12 +792,17 @@ export const authService = {
         return { ok: false, message: `ไม่พบผู้เล่นที่มีรหัส UID: ${targetUid} ในระบบ Cloud` };
       }
 
-      const { error: insertError } = await supabase
-        .from("user_friends")
-        .insert({ owner_uid: userUid, friend_uid: targetUid });
+      // Add bidirectional mutual friendship via security definer RPC
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc("add_friend_bidirectional", {
+        p_friend_uid: targetUid,
+        p_caller_uid: userUid,
+      });
 
-      if (insertError) {
-        return { ok: false, message: "ผู้เล่นคนนี้อยู่ในรายชื่อเพื่อนของคุณแล้ว" };
+      if (rpcErr || (rpcRes && !rpcRes.ok)) {
+        return {
+          ok: false,
+          message: rpcRes?.message || rpcErr?.message || "ไม่สามารถเพิ่มเพื่อนได้",
+        };
       }
 
       const updatedFriends = await fetchCloudFriends(userUid);

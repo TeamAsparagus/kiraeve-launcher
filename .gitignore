@@ -27,3 +27,5 @@ src-tauri/updater_key
 # OS files
 Thumbs.db
 .DS_Store
+__pycache__/
+*.pyc

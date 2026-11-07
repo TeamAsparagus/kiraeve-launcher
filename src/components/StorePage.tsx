@@ -5,7 +5,6 @@ import {
   MessageSquare,
   ExternalLink,
   Key,
-  Monitor,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -242,50 +241,6 @@ export const StorePage: React.FC<StorePageProps> = ({
             );
           })}
         </div>
-
-        {/* System Requirements Section */}
-        {featuredGame && (
-          <div className="bg-[#121922] border border-[#2a475e]/50 rounded-xl p-6 space-y-4">
-            <div className="flex items-center gap-2 border-b border-[#2a475e]/30 pb-3">
-              <Monitor className="w-5 h-5 text-[#66c0f4]" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                System Requirements for {featuredGame.title}
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-[#8f98a0]">
-              {/* Minimum Specs */}
-              <div className="space-y-2.5 bg-[#0e131a] p-4 rounded-lg border border-[#2a475e]/30">
-                <span className="font-bold text-white uppercase text-[11px] tracking-wider block">
-                  Minimum Requirements
-                </span>
-                <ul className="space-y-1.5 leading-relaxed text-[11px]">
-                  <li><strong className="text-[#c7d5e0]">OS:</strong> Windows 10 (64-bit)</li>
-                  <li><strong className="text-[#c7d5e0]">Processor:</strong> Intel Core i3-6100 / AMD Ryzen 3 1200</li>
-                  <li><strong className="text-[#c7d5e0]">Memory:</strong> 8 GB RAM</li>
-                  <li><strong className="text-[#c7d5e0]">Graphics:</strong> NVIDIA GeForce GTX 960 / AMD Radeon R9 280</li>
-                  <li><strong className="text-[#c7d5e0]">DirectX:</strong> Version 11</li>
-                  <li><strong className="text-[#c7d5e0]">Storage:</strong> 15 GB available space</li>
-                </ul>
-              </div>
-
-              {/* Recommended Specs */}
-              <div className="space-y-2.5 bg-[#0e131a] p-4 rounded-lg border border-[#2a475e]/30">
-                <span className="font-bold text-emerald-400 uppercase text-[11px] tracking-wider block">
-                  Recommended Specifications
-                </span>
-                <ul className="space-y-1.5 leading-relaxed text-[11px]">
-                  <li><strong className="text-[#c7d5e0]">OS:</strong> Windows 11 (64-bit)</li>
-                  <li><strong className="text-[#c7d5e0]">Processor:</strong> Intel Core i5-10400 / AMD Ryzen 5 3600</li>
-                  <li><strong className="text-[#c7d5e0]">Memory:</strong> 16 GB RAM</li>
-                  <li><strong className="text-[#c7d5e0]">Graphics:</strong> NVIDIA GeForce RTX 3060 / AMD Radeon RX 6600</li>
-                  <li><strong className="text-[#c7d5e0]">DirectX:</strong> Version 12</li>
-                  <li><strong className="text-[#c7d5e0]">Storage:</strong> 25 GB SSD space</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

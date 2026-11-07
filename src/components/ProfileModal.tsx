@@ -5,6 +5,7 @@ import { UserProfile } from "../types";
 interface ProfileModalProps {
   isOpen: boolean;
   user: UserProfile;
+  level?: number;
   onClose: () => void;
   onSaveProfile: (updated: UserProfile) => void;
 }
@@ -25,11 +26,12 @@ const PRESET_AVATARS = [
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   isOpen,
   user,
+  level,
   onClose,
   onSaveProfile,
 }) => {
   const [username, setUsername] = useState(user.username);
-  const [bio, setBio] = useState(user.bio || "Playing Kiraeve games on desktop.");
+  const [bio, setBio] = useState(user.bio || "Playing Asparagus games on desktop.");
   const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || PRESET_AVATARS[0]);
   const [status, setStatus] = useState<"online" | "in-game" | "away" | "offline">(user.status || "online");
   const [copied, setCopied] = useState(false);
@@ -50,7 +52,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === "string") {
-          setAvatarUrl(reader.result);
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const size = 256;
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              const minDim = Math.min(img.width, img.height);
+              const sx = (img.width - minDim) / 2;
+              const sy = (img.height - minDim) / 2;
+              ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+              const optimized = canvas.toDataURL("image/jpeg", 0.85);
+              setAvatarUrl(optimized);
+            } else {
+              setAvatarUrl(reader.result as string);
+            }
+          };
+          img.src = reader.result;
         }
       };
       reader.readAsDataURL(file);
@@ -140,7 +160,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {username || "Username"}
                 </h3>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#2a475e]/40 text-[#66c0f4] border border-[#66c0f4]/30">
-                  Level {user.level || 1}
+                  Level {level ?? user.level ?? 1}
                 </span>
               </div>
               <p className="text-xs text-[#8f98a0] line-clamp-1">

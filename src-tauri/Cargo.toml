@@ -1,6 +1,6 @@
 [package]
 name = "kiraeve-launcher"
-version = "0.1.2"
+version = "1.0.3"
 description = "Dedicated Game Launcher for Kiraeve"
 authors = ["Kittinan"]
 edition = "2021"
@@ -24,6 +24,7 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 futures-util = "0.3"
 dirs = "6"
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
+sha2 = "0.11.1"
 
 [profile.release]
 panic = "abort"

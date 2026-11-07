@@ -3,7 +3,6 @@ import {
   Upload,
   Copy,
   Check,
-  Award,
   Shield,
   Edit3,
   Image as ImageIcon,
@@ -47,12 +46,27 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === "string") {
-          onUpdateUser({
-            ...user,
-            avatar_url: reader.result,
-          });
-          setUploadFeedback("Avatar updated directly from your local file!");
-          setTimeout(() => setUploadFeedback(null), 3000);
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const size = 256;
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              const minDim = Math.min(img.width, img.height);
+              const sx = (img.width - minDim) / 2;
+              const sy = (img.height - minDim) / 2;
+              ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+              const optimized = canvas.toDataURL("image/jpeg", 0.85);
+              onUpdateUser({ ...user, avatar_url: optimized });
+            } else {
+              onUpdateUser({ ...user, avatar_url: reader.result as string });
+            }
+            setUploadFeedback("Avatar updated and optimized!");
+            setTimeout(() => setUploadFeedback(null), 3000);
+          };
+          img.src = reader.result;
         }
       };
       reader.readAsDataURL(file);
@@ -65,12 +79,32 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === "string") {
-          onUpdateUser({
-            ...user,
-            background_url: reader.result,
-          });
-          setUploadFeedback("Profile background updated!");
-          setTimeout(() => setUploadFeedback(null), 3000);
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const maxW = 1280;
+            const maxH = 720;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxW || h > maxH) {
+              const ratio = Math.min(maxW / w, maxH / h);
+              w = Math.round(w * ratio);
+              h = Math.round(h * ratio);
+            }
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, w, h);
+              const optimized = canvas.toDataURL("image/jpeg", 0.82);
+              onUpdateUser({ ...user, background_url: optimized });
+            } else {
+              onUpdateUser({ ...user, background_url: reader.result as string });
+            }
+            setUploadFeedback("Profile background updated and optimized!");
+            setTimeout(() => setUploadFeedback(null), 3000);
+          };
+          img.src = reader.result;
         }
       };
       reader.readAsDataURL(file);
@@ -78,9 +112,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   };
 
   const unlockedGames = games.filter((g) => g.is_unlocked);
-  const totalPlaytimeHours = unlockedGames
-    .reduce((sum, g) => sum + (g.playtime_hours || 0), 0)
-    .toFixed(1);
+  const totalPlaytimeNum = unlockedGames.reduce((sum, g) => sum + (g.playtime_hours || 0), 0);
+  const totalPlaytimeHours = totalPlaytimeNum.toFixed(1);
+
+  // Dynamic Level Calculation: Every 2 hours played = +1 Level
+  const calculatedLevel = Math.max(1, Math.floor(totalPlaytimeNum / 2) + 1);
+  const progressInLevelHours = Math.round((totalPlaytimeNum % 2) * 10) / 10;
+  const percentToNextLevel = Math.min(100, Math.round((progressInLevelHours / 2) * 100));
 
   return (
     <div className="h-full w-full overflow-y-auto bg-[#1b2838] select-none text-[#c7d5e0] animate-page-enter">
@@ -192,7 +230,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </div>
 
               <p className="text-xs text-[#8f98a0] max-w-md leading-relaxed">
-                {user.bio || "Playing Kiraeve games on desktop."}
+                {user.bio || "Playing Asparagus games on desktop."}
               </p>
 
               {/* Permanent UID Badge */}
@@ -215,10 +253,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           {/* Right Section: Level Badge & Steam Actions */}
           <div className="flex flex-col items-end gap-3 self-stretch md:self-center">
             <div className="flex items-center gap-3">
-              {/* Authentic Steam Level Badge */}
+              {/* Dynamic Playtime Level Badge */}
               <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1b2838] border-2 border-[#66c0f4] shadow-md">
                 <span className="text-xs text-[#8f98a0] font-bold uppercase">Level</span>
-                <span className="text-base font-black text-white">{user.level || 1}</span>
+                <span className="text-base font-black text-white">{calculatedLevel}</span>
               </div>
 
               <button
@@ -239,9 +277,25 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </button>
             </div>
 
+            {/* EXP Progress Bar toward Next Level */}
+            <div className="w-56 space-y-1 bg-[#10141a]/80 p-2 rounded-lg border border-[#263445]">
+              <div className="flex justify-between text-[10px] font-mono">
+                <span className="text-[#8f98a0]">Level {calculatedLevel} EXP</span>
+                <span className="text-[#66c0f4] font-bold">
+                  {progressInLevelHours.toFixed(1)} / 2.0 hrs
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-[#1b2838] rounded-full overflow-hidden border border-[#2a475e]/30">
+                <div
+                  className="h-full bg-gradient-to-r from-[#1a9fff] to-[#66c0f4] transition-all duration-300"
+                  style={{ width: `${percentToNextLevel}%` }}
+                />
+              </div>
+            </div>
+
             <button
               onClick={() => avatarInputRef.current?.click()}
-              className="text-xs text-[#66c0f4] hover:underline flex items-center gap-1.5 cursor-pointer pt-1"
+              className="text-xs text-[#66c0f4] hover:underline flex items-center gap-1.5 cursor-pointer pt-0.5"
             >
               <Upload className="w-3.5 h-3.5" />
               <span>Upload Avatar from Device (.png, .jpg)</span>
@@ -249,21 +303,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         </div>
 
-        {/* Steam Profile Showcases */}
+        {/* Profile Stats Showcases (Badges Removed) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-[#171d25] p-5 rounded-lg border border-[#263445] space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[#8f98a0] uppercase font-bold">Badges Collected</span>
-              <span className="text-white font-mono font-bold">2</span>
+              <span className="text-[#8f98a0] uppercase font-bold">Account Status</span>
+              <span className="text-emerald-400 font-mono font-bold">Active</span>
             </div>
-            <div className="flex items-center gap-3 pt-2">
-              <div className="p-2.5 rounded bg-[#10141a] border border-[#ffd700]/30 text-[#ffd700]" title="Early Adopter">
-                <Award className="w-5 h-5" />
-              </div>
-              <div className="p-2.5 rounded bg-[#10141a] border border-[#66c0f4]/30 text-[#66c0f4]" title="Verified Player">
-                <Shield className="w-5 h-5" />
-              </div>
+            <div className="flex items-center gap-2 pt-1 text-xs text-[#c7d5e0]">
+              <Shield className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Verified Cloud Account</span>
             </div>
+            <p className="text-[11px] text-[#8f98a0]">
+              UID: {user.uid}
+            </p>
           </div>
 
           <div className="bg-[#171d25] p-5 rounded-lg border border-[#263445] space-y-2">
@@ -282,7 +335,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <span className="text-white font-mono font-bold">{totalPlaytimeHours} hrs</span>
             </div>
             <p className="text-xs text-[#8f98a0] pt-1">
-              Logged across verified Kiraeve game executables.
+              {totalPlaytimeNum > 0 ? "2 hrs of gameplay grants +1 Account Level." : "Start playing games to gain Playtime EXP!"}
             </p>
           </div>
         </div>

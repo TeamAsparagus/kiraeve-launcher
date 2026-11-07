@@ -5,10 +5,17 @@ export interface Game {
   banner_url: string;
   screenshots?: string[];
   github_repo: string;
+  manifest_url?: string;
   exe_target: string;
   is_active: boolean;
   version?: string;
   is_installed?: boolean;
+  needs_update?: boolean;
+  update_info?: {
+    latest_version: string;
+    update_size_bytes: number;
+    changed_files_count: number;
+  };
   is_unlocked?: boolean;
   last_played?: string;
   playtime_hours?: number;

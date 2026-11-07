@@ -7,7 +7,6 @@ import {
   AlertCircle,
   FolderOpen,
   RefreshCw,
-  Trophy,
   Clock,
   Cloud,
   Settings,
@@ -19,8 +18,9 @@ import {
   FileText,
   X,
   ShoppingBag,
+  ArrowUpCircle,
 } from "lucide-react";
-import { Game } from "../types";
+import { Game, UserProfile } from "../types";
 
 export interface ActiveDownload {
   gameId: string;
@@ -35,6 +35,7 @@ export interface ActiveDownload {
 
 interface GameDetailsProps {
   game: Game;
+  user?: UserProfile | null;
   installPath: string;
   onStatusChange: () => void;
   onOpenRedeemKey: () => void;
@@ -43,10 +44,13 @@ interface GameDetailsProps {
   onStartDownload: (game: Game) => void;
   onCancelDownload: () => void;
   onUninstallGame: (gameId: string) => void;
+  isRunning?: boolean;
+  onGameLaunched?: (gameId: string) => void;
 }
 
 export const GameDetails: React.FC<GameDetailsProps> = ({
   game,
+  user,
   installPath,
   onOpenRedeemKey,
   onGoToStore,
@@ -54,6 +58,8 @@ export const GameDetails: React.FC<GameDetailsProps> = ({
   onStartDownload,
   onCancelDownload,
   onUninstallGame,
+  isRunning = false,
+  onGameLaunched,
 }) => {
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -71,6 +77,7 @@ export const GameDetails: React.FC<GameDetailsProps> = ({
   }, [game.id]);
 
   const handleLaunch = async () => {
+    if (isRunning) return;
     setLoading(true);
     setFeedback(null);
     try {
@@ -78,9 +85,11 @@ export const GameDetails: React.FC<GameDetailsProps> = ({
         gameId: game.id,
         customDir: installPath,
         exeTarget: game.exe_target,
+        playerUid: user?.uid || null,
       });
       setIsError(false);
       setFeedback(`Game running (Process PID: ${pid})`);
+      onGameLaunched?.(game.id);
     } catch (err: any) {
       setIsError(true);
       setFeedback(err.toString());
@@ -96,32 +105,35 @@ export const GameDetails: React.FC<GameDetailsProps> = ({
         gameId: game.id,
         customDir: installPath,
       });
-      setIsError(false);
-      setFeedback(`Opened local directory: ${installPath || "AppData\\Local\\KiraeveLauncher\\games"}\\${game.id}`);
-    } catch {
-      setIsError(false);
-      setFeedback(`Local files path: ${installPath || "%LOCALAPPDATA%\\KiraeveLauncher\\games"}\\${game.id}`);
+      setFeedback(null);
+    } catch (err: any) {
+      setIsError(true);
+      setFeedback(`Cannot open local folder: ${err?.message || err}`);
     }
   };
 
-  const handleVerifyIntegrity = () => {
+  const handleVerifyIntegrity = async () => {
     setShowManageMenu(false);
     setVerifying(true);
-    setVerifyProgress(0);
+    setVerifyProgress(35);
     setFeedback(null);
 
-    let current = 0;
-    const interval = setInterval(() => {
-      current += 25;
-      if (current >= 100) {
-        clearInterval(interval);
-        setVerifying(false);
-        setIsError(false);
-        setFeedback("All 142 game files successfully validated. No corrupted files found.");
-      } else {
-        setVerifyProgress(current);
-      }
-    }, 300);
+    try {
+      const fileCount = await invoke<number>("verify_game_files", {
+        gameId: game.id,
+        customDir: installPath || null,
+        exeTarget: game.exe_target,
+      });
+      setVerifyProgress(100);
+      setIsError(false);
+      setFeedback(`ตรวจสอบความสมบูรณ์สำเร็จ: ตรวจพบไฟล์ตัวเกม ${fileCount} รายการ พร้อมเปิดใช้งาน`);
+    } catch (err: any) {
+      setVerifyProgress(100);
+      setIsError(true);
+      setFeedback(`การตรวจสอบไฟล์ล้มเหลว: ${err?.message || err}`);
+    } finally {
+      setTimeout(() => setVerifying(false), 500);
+    }
   };
 
   const handleUninstall = () => {
@@ -130,26 +142,6 @@ export const GameDetails: React.FC<GameDetailsProps> = ({
     setIsError(false);
     setFeedback(`${game.title} has been uninstalled from your computer.`);
   };
-
-  const patchNotes = game.patch_notes || [
-    {
-      version: game.version || "v0.2.1 Alpha",
-      date: "Nov 4, 2026",
-      changes: [
-        "Improved frame pacing and reduced memory usage by 18%",
-        "Fixed physics collision edge cases on high-refresh-rate monitors",
-        "Added Discord Rich Presence status synchronization",
-      ],
-    },
-    {
-      version: "v0.1.8 Alpha",
-      date: "Oct 20, 2026",
-      changes: [
-        "Initial public playtest build for verified UID holders",
-        "Configured automatic save cloud backup support",
-      ],
-    },
-  ];
 
   return (
     <div className="h-full flex flex-col overflow-y-auto bg-[#1b2838] select-none">
@@ -237,6 +229,35 @@ export const GameDetails: React.FC<GameDetailsProps> = ({
                   <X className="w-4 h-4" />
                 </button>
               </div>
+            ) : game.is_installed && game.needs_update ? (
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => onStartDownload(game)}
+                  disabled={loading}
+                  className="group relative inline-flex items-center gap-2.5 px-8 py-3.5 rounded bg-gradient-to-r from-[#1a9fff] to-[#0078d4] hover:brightness-110 active:scale-[0.98] text-white font-display font-black text-xs tracking-widest uppercase transition-all shadow-xl shadow-[#1a9fff]/30 focus-visible:ring-2 focus-visible:ring-[#66c0f4] focus-visible:outline-none cursor-pointer disabled:opacity-50"
+                >
+                  <ArrowUpCircle className="w-4 h-4 text-white animate-pulse" />
+                  <span>
+                    UPDATE {game.update_info ? `(${(game.update_info.update_size_bytes / (1024 * 1024)).toFixed(1)} MB)` : "PATCH"}
+                  </span>
+                </button>
+                <button
+                  onClick={handleLaunch}
+                  disabled={loading || verifying}
+                  className="px-4 py-3.5 rounded bg-[#212b38] hover:bg-[#2a475e] border border-[#2a475e] text-[#c7d5e0] hover:text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                  title="Launch currently installed version without updating"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : isRunning ? (
+              <button
+                disabled
+                className="group relative inline-flex items-center gap-2.5 px-8 py-3.5 rounded bg-[#17222d] border border-[#a4d007]/50 text-[#a4d007] font-display font-black text-xs tracking-widest uppercase shadow-lg shadow-[#a4d007]/10 cursor-not-allowed opacity-90"
+              >
+                <span className="w-2.5 h-2.5 rounded-full bg-[#a4d007] animate-ping inline-block" />
+                <span>NOW PLAYING</span>
+              </button>
             ) : game.is_installed ? (
               <button
                 onClick={handleLaunch}
@@ -274,6 +295,16 @@ export const GameDetails: React.FC<GameDetailsProps> = ({
             <span className="text-[#c7d5e0] font-semibold flex items-center gap-1.5">
               {!game.is_unlocked ? (
                 <span className="text-[#f43f5e]">Locked (Buy on Discord)</span>
+              ) : game.needs_update ? (
+                <span className="text-[#66c0f4] font-semibold flex items-center gap-1.5">
+                  <ArrowUpCircle className="w-3.5 h-3.5 text-[#1a9fff] animate-pulse" />
+                  <span>Update Available ({game.update_info?.latest_version || "New patch"})</span>
+                </span>
+              ) : isRunning ? (
+                <span className="text-[#a4d007] font-semibold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#a4d007] animate-ping" />
+                  <span>Running</span>
+                </span>
               ) : game.is_installed ? (
                 <span className="text-[#a4d007]">Ready to Play</span>
               ) : (
@@ -463,28 +494,44 @@ export const GameDetails: React.FC<GameDetailsProps> = ({
               </div>
 
               <div className="space-y-4">
-                {patchNotes.map((note, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-[#10161f] border border-[#2a475e]/25 rounded p-4 space-y-2"
-                  >
+                {game.patch_notes && game.patch_notes.length > 0 ? (
+                  game.patch_notes.map((note, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-[#10161f] border border-[#2a475e]/25 rounded p-4 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#a4d007] font-mono">
+                          {note.version}
+                        </span>
+                        <span className="text-[10px] text-[#8f98a0] font-mono">
+                          {note.date}
+                        </span>
+                      </div>
+                      <ul className="space-y-1 text-xs text-[#c7d5e0] list-disc list-inside">
+                        {note.changes.map((c, i) => (
+                          <li key={i} className="leading-relaxed">
+                            {c}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))
+                ) : (
+                  <div className="bg-[#10161f] border border-[#2a475e]/25 rounded p-4 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#a4d007] font-mono">
-                        {note.version}
+                      <span className="text-xs font-bold text-white font-mono">
+                        Build Version: {game.version || "v1.0.0"}
                       </span>
-                      <span className="text-[10px] text-[#8f98a0] font-mono">
-                        {note.date}
+                      <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                        Verified Package
                       </span>
                     </div>
-                    <ul className="space-y-1 text-xs text-[#c7d5e0] list-disc list-inside">
-                      {note.changes.map((c, i) => (
-                        <li key={i} className="leading-relaxed">
-                          {c}
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="text-xs text-[#8f98a0] leading-relaxed">
+                      ไฟล์และบันทึกการอัปเดตของเกมได้รับการซิงก์จาก Cloudflare R2 CDN สามารถติดตามรายการอัปเดตและความเคลื่อนไหวทั้งหมดได้ที่แท็บ Patch Notes
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -513,48 +560,28 @@ export const GameDetails: React.FC<GameDetailsProps> = ({
 
           {/* Right Column: Achievements, Discord Support & Specs */}
           <div className="space-y-6">
-            {/* Achievements Card */}
+            {/* Verified Game Telemetry Card */}
             <div className="bg-[#141d27] p-5 rounded-lg border border-[#2a475e]/30 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-[#ffd700]" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-white">
-                    Achievements
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
+                  Game Telemetry
+                </span>
+              </div>
+              <div className="space-y-2 text-xs text-[#8f98a0] pt-1">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span>Total Time Played:</span>
+                  <span className="text-white font-mono font-bold">{game.playtime_hours ? `${game.playtime_hours} hrs` : "0.0 hrs"}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span>Installation Status:</span>
+                  <span className={game.is_installed ? "text-[#a4d007] font-semibold" : "text-[#66c0f4]"}>
+                    {game.is_installed ? "Installed & Verified" : "Ready to Download"}
                   </span>
                 </div>
-                <span className="text-xs font-mono text-[#8f98a0]">6 / 18 (33%)</span>
-              </div>
-              <div className="w-full h-2 bg-[#0e131a] rounded-full overflow-hidden border border-[#2a475e]/20">
-                <div
-                  className="h-full bg-gradient-to-r from-[#1a9fff] to-[#66c0f4] rounded-full"
-                  style={{ width: "33%" }}
-                />
-              </div>
-            </div>
-
-            {/* Technical Metadata */}
-            <div className="bg-[#141d27] p-5 rounded-lg border border-[#2a475e]/30 space-y-3 text-xs">
-              <h3 className="font-bold text-white uppercase tracking-wider text-[11px]">
-                Installation & Build Info
-              </h3>
-              <div className="space-y-2.5">
-                <div className="flex justify-between items-center py-1 border-b border-[#2a475e]/20">
-                  <span className="text-[#8f98a0]">Executable</span>
-                  <span className="font-mono text-white">{game.exe_target}</span>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-[#2a475e]/20">
-                  <span className="text-[#8f98a0]">Repository</span>
-                  <span className="font-mono text-[#66c0f4]">{game.github_repo}</span>
-                </div>
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-[#8f98a0]">Local Folder</span>
-                  <button
-                    onClick={handleBrowseLocalFiles}
-                    className="flex items-center gap-1 text-[#66c0f4] hover:underline font-mono text-[11px] cursor-pointer"
-                  >
-                    <FolderOpen className="w-3 h-3" />
-                    <span className="truncate max-w-[120px]">Open Folder</span>
-                  </button>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span>Cloud Save Sync:</span>
+                  <span className="text-[#c7d5e0]">Available</span>
                 </div>
               </div>
             </div>

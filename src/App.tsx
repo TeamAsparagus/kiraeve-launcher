@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { ShoppingBag } from "lucide-react";
 import { SteamHeader } from "./components/SteamHeader";
 import { SteamSidebar } from "./components/Sidebar";
 import { GameDetails, ActiveDownload } from "./components/GameDetails";
@@ -9,7 +10,6 @@ import { LoginModal, AuthSessionPayload } from "./components/LoginModal";
 import { ProfileModal } from "./components/ProfileModal";
 import { ProfilePage } from "./components/ProfilePage";
 import { StorePage } from "./components/StorePage";
-import { HelpPage } from "./components/HelpPage";
 import { CommunityPage } from "./components/CommunityPage";
 import { SteamBottomBar } from "./components/SteamBottomBar";
 import { FriendsModal } from "./components/FriendsModal";
@@ -19,94 +19,80 @@ import { check, Update } from "@tauri-apps/plugin-updater";
 import { Game, UserProfile, LauncherSettings, Friend } from "./types";
 import { authService } from "./lib/authService";
 import { supabase } from "./lib/supabase";
+import { openExternal } from "./lib/openExternal";
+import { resizeForLogin, resizeForMainApp } from "./lib/windowManager";
 
 const BASE_CATALOG: Game[] = [
   {
-    id: "kiraeve-pilot",
-    title: "Kiraeve Pilot",
+    id: "anime-battle",
+    title: "Anime Battle",
     description:
-      "High-speed zero-gravity tactical action game featuring reactive thruster physics, orbital combat arenas, and procedural environments.",
+      "Action-packed 3D anime battle arena featuring signature martial skills, destructive ultimate combos, and fluid multiplayer combat.",
     banner_url:
-      "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1400&q=80",
+      "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1400&q=80",
     screenshots: [
-      "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1400&q=80",
-      "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1400&q=80",
+      "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=1200&q=80",
     ],
-    github_repo: "kiraeve/kiraeve-pilot",
-    exe_target: "KiraevePilot.exe",
-    version: "v1.0.2",
+    github_repo: "BonikiWazari/AnimeBattle",
+    manifest_url: "https://pub-62352b30a9014afa94bda00163ab4d79.r2.dev/games/anime-battle/manifest.json",
+    exe_target: "AnimeBattle.exe",
+    version: "v1.0.0",
     is_active: true,
     is_unlocked: false,
     is_installed: false,
-    category: "Sci-Fi Action",
+    category: "Anime Action",
     last_played: "Never",
     playtime_hours: 0,
-    tags: ["Action", "Indie", "Zero-G", "Singleplayer"],
-  },
-  {
-    id: "kira-space-odyssey",
-    title: "Space Odyssey: Kira",
-    description:
-      "Deep space survival simulation featuring zero-gravity exploration, modular orbital station construction, and intergalactic trading routes.",
-    banner_url:
-      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1400&q=80",
-    screenshots: [
-      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1400&q=80",
-      "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80",
-    ],
-    github_repo: "kiraeve/space-odyssey",
-    exe_target: "SpaceOdyssey.exe",
-    version: "v1.0.4",
-    is_active: true,
-    is_unlocked: false,
-    is_installed: false,
-    category: "Space Simulation",
-    last_played: "Never",
-    playtime_hours: 0,
-    tags: ["Simulation", "Open World", "Sci-Fi", "Base Building"],
-  },
-  {
-    id: "neon-cyber-drift",
-    title: "Cyber Drift 2088",
-    description:
-      "High-octane synthwave racing game with retro-futuristic hovercrafts, customizable plasma engines, and neon-lit megacity highways.",
-    banner_url:
-      "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1400&q=80",
-    screenshots: [
-      "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1400&q=80",
-      "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80",
-    ],
-    github_repo: "kiraeve/cyber-drift",
-    exe_target: "CyberDrift.exe",
-    version: "v0.9.5",
-    is_active: true,
-    is_unlocked: false,
-    is_installed: false,
-    category: "Arcade Racing",
-    last_played: "Never",
-    playtime_hours: 0,
-    tags: ["Racing", "Cyberpunk", "Multiplayer", "Synthwave"],
+    tags: ["Anime", "Action", "Fighting", "3D Arena", "Multiplayer"],
   },
 ];
 
 const SETTINGS_STORAGE_KEY = "kiraeve_launcher_settings_v1";
+const PLAYTIME_STORAGE_KEY = "kiraeve_playtime_v1";
+
+function loadSavedPlaytime(uid?: string): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(`${PLAYTIME_STORAGE_KEY}_${uid || "guest"}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveGamePlaytime(uid: string | undefined, gameId: string, hours: number) {
+  try {
+    const key = `${PLAYTIME_STORAGE_KEY}_${uid || "guest"}`;
+    const current = loadSavedPlaytime(uid);
+    current[gameId] = hours;
+    localStorage.setItem(key, JSON.stringify(current));
+  } catch {}
+}
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
-    "library" | "store" | "community" | "profile" | "settings" | "help"
+    "library" | "store" | "community" | "profile" | "settings"
   >("library");
-  const [selectedGameId, setSelectedGameId] = useState<string>("kiraeve-pilot");
+  const [selectedGameId, setSelectedGameId] = useState<string>("anime-battle");
   const [games, setGames] = useState<Game[]>(BASE_CATALOG);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [user, setUser] = useState<UserProfile | null>(null);
+  const userRef = useRef<UserProfile | null>(null);
+  const [runningGameIds, setRunningGameIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   // Global Download Manager State
   const [activeDownload, setActiveDownload] = useState<ActiveDownload | null>(null);
+  const activeDownloadRef = useRef<ActiveDownload | null>(null);
   const downloadTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    activeDownloadRef.current = activeDownload;
+  }, [activeDownload]);
 
   // Modals
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -123,17 +109,20 @@ export const App: React.FC = () => {
     } catch {}
     return {
       installPath: "",
-      autoUpdate: true,
-      enableDiscordRPC: true,
+      autoUpdate: false,
+      enableDiscordRPC: false,
     };
   });
 
   const applySessionToState = (session: AuthSessionPayload) => {
+    resizeForMainApp();
     setUser(session.user);
     setFriends(session.friends);
+    const savedPlaytime = loadSavedPlaytime(session.user.uid);
     setGames((prev) =>
       prev.map((g) => ({
         ...g,
+        playtime_hours: savedPlaytime[g.id] ?? g.playtime_hours ?? 0,
         is_unlocked: session.unlockedGameIds.includes(g.id),
         is_installed: session.installedGameIds.includes(g.id),
       }))
@@ -154,17 +143,27 @@ export const App: React.FC = () => {
       const cloudCatalog = await authService.fetchCatalog(BASE_CATALOG);
       const activeSession = await authService.getActiveSession();
       if (activeSession) {
+        await resizeForMainApp();
         setUser(activeSession.user);
         setFriends(activeSession.friends);
+        const savedPlaytime = loadSavedPlaytime(activeSession.user.uid);
         setGames(
           cloudCatalog.map((g) => ({
             ...g,
+            playtime_hours: savedPlaytime[g.id] ?? g.playtime_hours ?? 0,
             is_unlocked: activeSession.unlockedGameIds.includes(g.id),
             is_installed: activeSession.installedGameIds.includes(g.id),
           }))
         );
       } else {
-        setGames(cloudCatalog);
+        await resizeForLogin(false);
+        const savedPlaytime = loadSavedPlaytime("guest");
+        setGames(
+          cloudCatalog.map((g) => ({
+            ...g,
+            playtime_hours: savedPlaytime[g.id] ?? g.playtime_hours ?? 0,
+          }))
+        );
       }
 
       // Check for launcher updates on startup
@@ -217,11 +216,15 @@ export const App: React.FC = () => {
           "game_session_ended",
           (event) => {
             const { game_id, duration_seconds } = event.payload;
-            const addedHours = Math.max(0.1, Math.round((duration_seconds / 3600) * 10) / 10);
+            // Free the running lock for this game
+            setRunningGameIds((prev) => prev.filter((id) => id !== game_id));
+
+            const addedHours = Math.max(0.01, Math.round((duration_seconds / 3600) * 100) / 100);
             setGames((prev) =>
               prev.map((g) => {
                 if (g.id !== game_id) return g;
                 const newHours = Math.round(((g.playtime_hours || 0) + addedHours) * 10) / 10;
+                saveGamePlaytime(userRef.current?.uid, game_id, newHours);
                 return {
                   ...g,
                   playtime_hours: newHours,
@@ -242,6 +245,23 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // Global redirect interceptor: routes all external links cleanly to OS default browser
+  useEffect(() => {
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement)?.closest("a");
+      if (
+        target &&
+        target.href &&
+        (target.href.startsWith("http://") || target.href.startsWith("https://"))
+      ) {
+        e.preventDefault();
+        openExternal(target.href);
+      }
+    };
+    document.addEventListener("click", handleAnchorClick);
+    return () => document.removeEventListener("click", handleAnchorClick);
+  }, []);
+
   const refreshInstalledStatus = async () => {
     const updated = await Promise.all(
       games.map(async (g) => {
@@ -251,7 +271,46 @@ export const App: React.FC = () => {
             customDir: settings.installPath,
             exeTarget: g.exe_target,
           });
-          return { ...g, is_installed: installed };
+
+          let needsUpdate = false;
+          let updateInfo: Game["update_info"] = undefined;
+
+          // If installed and differential manifest exists, query remote update state
+          if (installed && g.manifest_url) {
+            try {
+              const res = await invoke<{
+                needs_update: boolean;
+                current_version?: string;
+                latest_version: string;
+                update_size_bytes: number;
+                changed_files_count: number;
+                total_files_count: number;
+              }>("check_game_update", {
+                gameId: g.id,
+                manifestUrl: g.manifest_url,
+                customDir: settings.installPath || null,
+                authToken: settings.githubToken || null,
+              });
+
+              if (res.needs_update) {
+                needsUpdate = true;
+                updateInfo = {
+                  latest_version: res.latest_version,
+                  update_size_bytes: res.update_size_bytes,
+                  changed_files_count: res.changed_files_count,
+                };
+              }
+            } catch (checkErr) {
+              console.warn(`[Updater] Check failed for ${g.id}:`, checkErr);
+            }
+          }
+
+          return {
+            ...g,
+            is_installed: installed,
+            needs_update: needsUpdate,
+            update_info: updateInfo,
+          };
         } catch {
           return g;
         }
@@ -291,61 +350,42 @@ export const App: React.FC = () => {
     });
 
     try {
-      // Real GitHub Release download attempt via Tauri
-      const result = await invoke<string>("download_and_install_github_game", {
-        gameId: game.id,
-        githubRepo: game.github_repo,
-        githubToken: settings.githubToken || null,
-        customDir: settings.installPath || null,
-        exeTarget: game.exe_target,
-      });
+      let result = "";
+      if (game.manifest_url) {
+        // Steam-like differential sync via manifest
+        result = await invoke<string>("sync_game_differential", {
+          gameId: game.id,
+          manifestUrl: game.manifest_url,
+          customDir: settings.installPath || null,
+          authToken: settings.githubToken || null,
+        });
+      } else {
+        // Fallback: full GitHub Release download via Tauri
+        result = await invoke<string>("download_and_install_github_game", {
+          gameId: game.id,
+          githubRepo: game.github_repo,
+          githubToken: settings.githubToken || null,
+          customDir: settings.installPath || null,
+          exeTarget: game.exe_target,
+        });
+      }
 
-      console.log("GitHub release installed successfully:", result);
+      console.log("Game installed/synced successfully:", result);
       if (user) {
         authService.setGameInstalled(user.uid, game.id, true);
       }
       setGames((prev) =>
-        prev.map((g) => (g.id === game.id ? { ...g, is_installed: true } : g))
+        prev.map((g) =>
+          g.id === game.id
+            ? { ...g, is_installed: true, needs_update: false, update_info: undefined }
+            : g
+        )
       );
       setActiveDownload(null);
-    } catch (err) {
-      console.warn("GitHub Release download fallback active:", err);
-
-      let currentProgress = 0;
-      downloadTimerRef.current = window.setInterval(async () => {
-        currentProgress += 12.5;
-        if (currentProgress >= 100) {
-          if (downloadTimerRef.current) {
-            window.clearInterval(downloadTimerRef.current);
-          }
-          try {
-            await invoke<string>("install_mock_game", {
-              gameId: game.id,
-              customDir: settings.installPath,
-              exeTarget: game.exe_target,
-            });
-          } catch {}
-
-          if (user) {
-            authService.setGameInstalled(user.uid, game.id, true);
-          }
-          setGames((prev) =>
-            prev.map((g) => (g.id === game.id ? { ...g, is_installed: true } : g))
-          );
-          setActiveDownload(null);
-        } else {
-          const dlMB = Math.round((currentProgress / 100) * totalMB);
-          setActiveDownload({
-            gameId: game.id,
-            gameTitle: game.title,
-            progress: currentProgress,
-            speed: `${(15 + Math.random() * 6).toFixed(1)} MB/s`,
-            downloadedMB: dlMB,
-            totalMB,
-            isDownloading: true,
-          });
-        }
-      }, 320);
+    } catch (err: any) {
+      console.error("Game download/sync error:", err);
+      alert(`การดาวน์โหลด/อัปเดตล้มเหลว: ${err?.message || err}`);
+      setActiveDownload(null);
     }
   };
 
@@ -355,6 +395,63 @@ export const App: React.FC = () => {
     }
     setActiveDownload(null);
   };
+
+  // Automatic Game Update Trigger: If autoUpdate is enabled, automatically download patches for installed games
+  useEffect(() => {
+    if (!settings.autoUpdate || activeDownloadRef.current) return;
+    const pendingGame = games.find((g) => g.is_installed && g.needs_update && g.manifest_url);
+    if (pendingGame) {
+      console.log(`[Auto-Update] Silently updating ${pendingGame.title} in background...`);
+      handleStartDownload(pendingGame);
+    }
+  }, [games, settings.autoUpdate]);
+
+  // Periodic Background Poller (every 20 seconds for game updates, entitlements, and friends)
+  useEffect(() => {
+    const refreshAll = async () => {
+      // 1. Refresh fresh entitlements & friends from Cloud
+      if (user) {
+        try {
+          const [freshEntitlements, freshFriends] = await Promise.all([
+            authService.fetchUserEntitlements(user.uid),
+            authService.fetchFriends(user.uid),
+          ]);
+          setGames((prev) =>
+            prev.map((g) => ({
+              ...g,
+              is_unlocked: freshEntitlements.includes(g.id),
+            }))
+          );
+          setFriends(freshFriends);
+        } catch (e) {
+          console.warn("Background cloud sync error:", e);
+        }
+      }
+
+      // 2. Refresh game patches / version diffs
+      refreshInstalledStatus();
+
+      // 3. Check for Launcher App updates
+      if (settings.autoUpdate) {
+        try {
+          const found = await check();
+          if (found) {
+            setAvailableUpdate(found);
+            setIsUpdateModalOpen(true);
+          }
+        } catch {}
+      }
+    };
+
+    const poller = setInterval(refreshAll, 20000);
+    const onFocus = () => refreshAll();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      clearInterval(poller);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [user, settings.autoUpdate, settings.installPath]);
 
   const handleUninstallGame = async (gameId: string) => {
     try {
@@ -413,9 +510,12 @@ export const App: React.FC = () => {
     setUser(null);
     setFriends([]);
     setGames(BASE_CATALOG);
+    setRunningGameIds([]);
+    await resizeForLogin(false);
   };
 
-  const selectedGame = games.find((g) => g.id === selectedGameId) || games[0];
+  const ownedGames = games.filter((g) => g.is_unlocked);
+  const selectedGame = ownedGames.find((g) => g.id === selectedGameId) || ownedGames[0] || null;
   const onlineFriendsCount = friends.filter(
     (f) => f.status === "online" || f.status === "in-game"
   ).length;
@@ -457,12 +557,15 @@ export const App: React.FC = () => {
               games={games}
               selectedGameId={selectedGameId}
               onSelectGame={setSelectedGameId}
+              onOpenStore={() => setActiveTab("store")}
+              runningGameIds={runningGameIds}
             />
 
             <main className="flex-1 h-full overflow-hidden">
               {selectedGame ? (
                 <GameDetails
                   game={selectedGame}
+                  user={user}
                   installPath={settings.installPath}
                   onStatusChange={refreshInstalledStatus}
                   onOpenRedeemKey={() => setIsRedeemKeyOpen(true)}
@@ -471,10 +574,38 @@ export const App: React.FC = () => {
                   onStartDownload={handleStartDownload}
                   onCancelDownload={handleCancelDownload}
                   onUninstallGame={handleUninstallGame}
+                  isRunning={runningGameIds.includes(selectedGame.id)}
+                  onGameLaunched={(gameId) =>
+                    setRunningGameIds((prev) => Array.from(new Set([...prev, gameId])))
+                  }
                 />
               ) : (
-                <div className="h-full flex items-center justify-center text-[#8f98a0] text-sm">
-                  Select a game from your library
+                <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-2xl bg-[#172432] border border-[#2a475e]/60 flex items-center justify-center text-[#66c0f4] shadow-2xl">
+                    <ShoppingBag className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1.5 max-w-md">
+                    <h2 className="font-display text-xl font-black text-white uppercase tracking-wider">
+                      คลังเกมของคุณยังว่างเปล่า
+                    </h2>
+                    <p className="text-xs text-[#8f98a0] leading-relaxed">
+                      เริ่มต้นเล่นเกมของคุณโดยเลือกซื้อหรือรับเกมผ่าน Discord หรือใส่รหัสเปิดใช้งานเกม (Product Key) ที่ได้รับ
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      onClick={() => setActiveTab("store")}
+                      className="px-5 py-2.5 rounded bg-gradient-to-r from-[#1a9fff] to-[#0078d4] hover:brightness-110 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-[#1a9fff]/20 cursor-pointer"
+                    >
+                      ไปยังหน้าร้านค้า (Store)
+                    </button>
+                    <button
+                      onClick={() => setIsRedeemKeyOpen(true)}
+                      className="px-5 py-2.5 rounded bg-[#212b38] hover:bg-[#2a475e] border border-[#2a475e] text-[#c7d5e0] hover:text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      ใส่รหัสผลิตภัณฑ์ (Redeem Key)
+                    </button>
+                  </div>
                 </div>
               )}
             </main>
@@ -516,15 +647,6 @@ export const App: React.FC = () => {
             />
           </div>
         )}
-
-        {/* Tab 6: Help Page */}
-        {activeTab === "help" && (
-          <HelpPage
-            user={user}
-            onOpenRedeemKey={() => setIsRedeemKeyOpen(true)}
-            onOpenSettings={() => setActiveTab("settings")}
-          />
-        )}
       </div>
 
       {/* Persistent Steam Bottom Bar */}
@@ -551,6 +673,14 @@ export const App: React.FC = () => {
       <ProfileModal
         isOpen={isProfileOpen}
         user={user}
+        level={Math.max(
+          1,
+          Math.floor(
+            games
+              .filter((g) => g.is_unlocked)
+              .reduce((sum, g) => sum + (g.playtime_hours || 0), 0) / 2
+          ) + 1
+        )}
         onClose={() => setIsProfileOpen(false)}
         onSaveProfile={handleUpdateUser}
       />

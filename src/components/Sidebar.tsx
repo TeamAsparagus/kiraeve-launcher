@@ -1,22 +1,29 @@
 import React, { useState } from "react";
-import { Search, Lock, CheckCircle2, SlidersHorizontal } from "lucide-react";
+import { Search, CheckCircle2, SlidersHorizontal, ArrowUpCircle, ShoppingBag } from "lucide-react";
 import { Game } from "../types";
 
 interface SteamSidebarProps {
   games: Game[];
   selectedGameId: string;
   onSelectGame: (id: string) => void;
+  onOpenStore?: () => void;
+  runningGameIds?: string[];
 }
 
 export const SteamSidebar: React.FC<SteamSidebarProps> = ({
   games,
   selectedGameId,
   onSelectGame,
+  onOpenStore,
+  runningGameIds = [],
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterInstalled, setFilterInstalled] = useState(false);
 
-  const filteredGames = games.filter((g) => {
+  // Library should strictly display owned/unlocked games
+  const ownedGames = games.filter((g) => g.is_unlocked);
+
+  const filteredGames = ownedGames.filter((g) => {
     const matchesSearch = g.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = filterInstalled ? g.is_installed : true;
     return matchesSearch && matchesFilter;
@@ -31,16 +38,17 @@ export const SteamSidebar: React.FC<SteamSidebarProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name"
-            className="w-full bg-[#101216] border border-[#2a475e]/40 rounded px-2.5 py-1.5 pl-7 text-xs text-[#c7d5e0] placeholder-[#4e5963] focus:outline-none focus:border-[#66c0f4] transition-colors"
+            placeholder="Search library..."
+            aria-label="Search games library"
+            className="w-full bg-[#101216] border border-[#2a475e]/40 rounded px-2.5 py-1.5 pl-7 text-xs text-[#c7d5e0] placeholder-[#768696] focus:outline-none focus:border-[#66c0f4] focus-visible:ring-1 focus-visible:ring-[#66c0f4] transition-colors"
           />
-          <Search className="w-3.5 h-3.5 text-[#4e5963] absolute left-2 top-2" />
+          <Search className="w-3.5 h-3.5 text-[#768696] absolute left-2 top-2" />
         </div>
 
         {/* Filter toggles */}
         <div className="flex items-center justify-between text-[11px] text-[#8f98a0] px-1">
           <span className="font-semibold uppercase tracking-wider text-[10px]">
-            Games ({filteredGames.length})
+            My Games ({ownedGames.length})
           </span>
           <button
             onClick={() => setFilterInstalled(!filterInstalled)}
@@ -57,7 +65,27 @@ export const SteamSidebar: React.FC<SteamSidebarProps> = ({
 
       {/* Game List Items */}
       <div className="flex-1 overflow-y-auto py-1 divide-y divide-[#2a475e]/10">
-        {filteredGames.length === 0 ? (
+        {ownedGames.length === 0 ? (
+          <div className="p-5 text-center space-y-3">
+            <div className="w-9 h-9 rounded-full bg-[#203144] flex items-center justify-center mx-auto text-[#66c0f4]">
+              <ShoppingBag className="w-4 h-4" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-white">คลังเกมว่างเปล่า</p>
+              <p className="text-[11px] text-[#8f98a0] leading-relaxed">
+                คุณยังไม่มีเกมในคลัง ไปที่ร้านค้าเพื่อเลือกรับหรือเปิดใช้งานเกม
+              </p>
+            </div>
+            {onOpenStore && (
+              <button
+                onClick={onOpenStore}
+                className="w-full py-2 px-3 rounded bg-gradient-to-r from-[#1a9fff] to-[#0078d4] hover:brightness-110 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+              >
+                ไปที่หน้าร้านค้า (Store)
+              </button>
+            )}
+          </div>
+        ) : filteredGames.length === 0 ? (
           <div className="p-4 text-center text-xs text-[#8f98a0]">
             No games match your search.
           </div>
@@ -93,9 +121,21 @@ export const SteamSidebar: React.FC<SteamSidebarProps> = ({
 
                 {/* Status Badges */}
                 <div className="flex-shrink-0 ml-2">
-                  {!game.is_unlocked ? (
-                    <span title="Locked">
-                      <Lock className="w-3 h-3 text-[#f43f5e]" />
+                  {runningGameIds.includes(game.id) ? (
+                    <span
+                      title="Now Playing"
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-bold bg-[#a4d007]/20 text-[#a4d007] border border-[#a4d007]/40 shadow-sm"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#a4d007] animate-ping" />
+                      <span>RUNNING</span>
+                    </span>
+                  ) : game.needs_update ? (
+                    <span
+                      title="Update Available"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#1a9fff]/20 text-[#66c0f4] border border-[#1a9fff]/40"
+                    >
+                      <ArrowUpCircle className="w-2.5 h-2.5 text-[#1a9fff] animate-pulse" />
+                      <span>UPDATE</span>
                     </span>
                   ) : game.is_installed ? (
                     <span title="Installed">

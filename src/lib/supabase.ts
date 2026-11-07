@@ -85,7 +85,7 @@ export async function testSupabaseConnection(
     if (error) {
       return {
         ok: false,
-        message: `เชื่อมต่อสำเร็จแต่ไม่พบตาราง games (${error.message}) — กรุณารันไฟล์ supabase/schema.sql ใน SQL Editor`,
+        message: `เชื่อมต่อสำเร็จแต่ไม่พบตาราง games (${error.message}): กรุณารันไฟล์ supabase/schema.sql ใน SQL Editor`,
       };
     }
     return {

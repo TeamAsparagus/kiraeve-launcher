@@ -68,6 +68,9 @@ export const RedeemKeyModal: React.FC<RedeemKeyModalProps> = ({
               type="text"
               value={key}
               onChange={(e) => setKey(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleActivate();
+              }}
               placeholder="กรอกรหัสคีย์ที่ได้รับจากแอดมิน"
               className="w-full bg-[#12141a] border border-[#2a475e]/60 rounded px-3 py-2 text-xs font-mono text-[#c7d5e0] placeholder-[#4e5963] focus:outline-none focus:border-[#66c0f4] uppercase"
             />

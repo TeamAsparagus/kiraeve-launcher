@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowDownCircle, RefreshCw, CheckCircle2, AlertCircle, X, Sparkles } from 'lucide-react';
+import { ArrowDownCircle, RefreshCw, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 
@@ -39,7 +39,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
       setChecking(true);
       setError(null);
       setUpToDate(false);
-      setStatusMessage('กำลังตรวจสอบเวอร์ชันล่าสุดจาก GitHub Releases...');
+      setStatusMessage('กำลังตรวจสอบเวอร์ชันล่าสุดจาก Official Update Server...');
 
       const foundUpdate = await check();
       if (foundUpdate) {
@@ -112,11 +112,11 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 bg-[#171a21] border-b border-[#2a475e]/50">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#1a9fff]/20 border border-[#1a9fff]/40 flex items-center justify-center text-[#1a9fff]">
-              <Sparkles className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white tracking-wide">Kiraeve Launcher Updates</h3>
-              <p className="text-[11px] text-[#8f98a0]">ระบบอัปเดตอัตโนมัติ (GitHub Release)</p>
+              <h3 className="text-sm font-bold text-white tracking-wide">Asparagus Updates</h3>
+              <p className="text-[11px] text-[#8f98a0]">ระบบอัปเดตอัตโนมัติ (Cloudflare R2 CDN)</p>
             </div>
           </div>
           <button
