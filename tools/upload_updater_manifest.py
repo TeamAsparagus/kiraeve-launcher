@@ -17,14 +17,20 @@ s3 = boto3.client(
 bucket = os.getenv("R2_BUCKET_NAME")
 public_url = os.getenv("R2_PUBLIC_URL").rstrip("/")
 
+sig_path = os.path.join(root, "src-tauri", "target", "release", "bundle", "nsis", "Asparagus_1.0.3_x64-setup.exe.sig")
+sig_text = ""
+if os.path.exists(sig_path):
+    with open(sig_path, "r", encoding="utf-8") as sf:
+        sig_text = sf.read().strip()
+
 manifest = {
-    "version": "0.1.2",
-    "notes": "Kiraeve Launcher v0.1.2: Added Patch Notes hub, custom game library folder picker, manual/auto update switch, and direct cloud authentication.",
-    "pub_date": "2026-11-07T13:30:00Z",
+    "version": "1.0.3",
+    "notes": "Asparagus Launcher v1.0.3: Compact Steam-style login window, Friend profile viewer, Right-click disabled, and Anime Battle verified release.",
+    "pub_date": "2026-11-07T15:15:00Z",
     "platforms": {
         "windows-x86_64": {
-            "signature": "",
-            "url": f"{public_url}/launcher/KiraeveLauncher-Setup.exe"
+            "signature": sig_text,
+            "url": f"{public_url}/launcher/Asparagus-Setup.exe"
         }
     }
 }
