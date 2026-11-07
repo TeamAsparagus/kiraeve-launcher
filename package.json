@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "admin": "python tools/admin_server.py"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

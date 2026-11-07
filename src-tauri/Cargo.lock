@@ -2136,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "kiraeve-launcher"
-version = "0.1.2"
+version = "1.0.3"
 dependencies = [
  "dirs 6.0.0",
  "futures-util",
