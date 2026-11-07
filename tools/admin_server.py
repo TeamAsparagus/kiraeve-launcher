@@ -20,23 +20,34 @@ import urllib.request
 import webbrowser
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-ENV_PATH = os.path.join(ROOT_DIR, ".env")
+ENV_PATHS = [
+    os.path.join(ROOT_DIR, ".env"),
+    os.path.join(os.path.dirname(sys.executable), ".env"),
+    os.path.join(os.getcwd(), ".env")
+]
 
 def load_env(path: str):
     if not os.path.exists(path):
         return
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip().strip("'\""))
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip("'\""))
+    except Exception:
+        pass
 
-load_env(ENV_PATH)
+for p in ENV_PATHS:
+    load_env(p)
 
-SUPABASE_URL = os.getenv("VITE_SUPABASE_URL", "https://ntpzvcybfulilwxjlxng.supabase.co")
-SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+DEFAULT_SUPABASE_URL = "https://ntpzvcybfulilwxjlxng.supabase.co"
+DEFAULT_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50cHp2Y3liZnVsaWx3eGpseG5nIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzgzMjQxNCwiZXhwIjoyMTA5NDA4NDE0fQ.Fr6POjjBesKo_iRphVmyo2kPHS49pDXEBD9oLc-6aok"
+
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL", DEFAULT_SUPABASE_URL)
+SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", DEFAULT_SERVICE_KEY)
 
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme123")
@@ -71,6 +82,13 @@ def generate_key_code(game_id: str) -> str:
     return f"{prefix}-{p1}-{p2}"
 
 class AdminRequestHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        try:
+            if sys.stderr:
+                sys.stderr.write("%s - - [%s] %s\n" % (self.address_string(), self.log_date_time_string(), format % args))
+        except Exception:
+            pass
+
     def send_json(self, status: int, data: dict):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
